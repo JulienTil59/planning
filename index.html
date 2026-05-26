@@ -278,7 +278,7 @@ async function fetchCalendar(agendaKey, calInfo) {
 
   const weekDatesArr = getWeekDates();
   return data.items
-    .filter(ev => ev.start && ev.start.dateTime)
+    .filter(ev => ev.start && ev.start.dateTime && ev.end && ev.end.dateTime)
     .map(ev => {
       const startDt = new Date(ev.start.dateTime);
       const endDt   = new Date(ev.end.dateTime);
@@ -291,10 +291,11 @@ async function fetchCalendar(agendaKey, calInfo) {
 
       // Parse title: "CLIENT - Intitulé - OF" or just use summary as title
       const summary = ev.summary || '';
-      const parts   = summary.split(' - ');
+      // Support both – (tiret long) and - (tiret court) as separators
+      const parts   = summary.split(/\s*[–-]\s*/);
       const client  = parts[0]?.trim().toUpperCase() || summary.toUpperCase();
-      const title   = parts[1]?.trim() || '';
-      const of      = parts[2]?.trim() || '';
+      const title   = parts.slice(1, parts.length > 2 ? parts.length-1 : undefined).join(' – ').trim() || '';
+      const of      = parts.length > 2 ? parts[parts.length-1]?.trim() : '';
 
       // Parse description for detail lines
       const details = ev.description
@@ -380,17 +381,20 @@ function renderCalendar() {
       if (idx < 0 || idx >= cells.length) return;
       const parentCell = cells[idx];
 
-      const rawH   = (ev.end - ev.start) * SLOT_H;
-      const height = Math.max(rawH, 0.5*SLOT_H) - 2;
-      const col    = ev._col || 0;
-      const multi  = columns.length > 1;
+      const rawH      = (ev.end - ev.start) * SLOT_H;
+      const height    = Math.max(rawH, 0.5*SLOT_H) - 2;
+      const col       = ev._col || 0;
+      const totalCols = Math.min(columns.length, 5);
+      const colWidth  = Math.floor(100 / totalCols);
+      const leftPct   = col * colWidth;
+      const rightPct  = 100 - leftPct - colWidth + (col < totalCols-1 ? 1 : 0);
 
       const el = document.createElement('div');
       el.className = `event ${CALENDARS[ev.agenda]?.cls || 'ev-pao'}`;
       el.style.top    = `${(ev.start % 1) * SLOT_H}px`;
       el.style.height = `${height}px`;
-      el.style.left   = `${3 + col*10}px`;
-      el.style.right  = multi ? `${(columns.length-1-col)*3+3}%` : '3px';
+      el.style.left   = `${leftPct}%`;
+      el.style.right  = `${Math.max(0, rightPct)}%`;
       el.style.zIndex = 2 + col;
 
       const showLabel = height > 26;
