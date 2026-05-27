@@ -434,7 +434,9 @@ function posTooltip(e){
 
 document.getElementById('prevWeek').addEventListener('click',function(){weekOffset--;renderGrid();fetchAllCalendars();});
 document.getElementById('nextWeek').addEventListener('click',function(){weekOffset++;renderGrid();fetchAllCalendars();});
-document.getElementById('goToday').addEventListener('click',function(){weekOffset=0;renderGrid();fetchAllCalendars();});
+document.getElementById('goToday').addEventListener('click',function(){
+  weekOffset=getTodayOffset();renderGrid();fetchAllCalendars();
+});
 
 function buildTicker(){
   var track=document.getElementById('tickerTrack');
@@ -446,6 +448,25 @@ function buildTicker(){
   }
 }
 
+
+function getTodayOffset(){
+  // Calculate weekOffset so that today is the first column
+  var now=new Date(),day=now.getDay();
+  // If weekend, snap to next Monday
+  if(day===6) return 1; // Saturday -> show Monday
+  if(day===0) return 0; // Sunday -> show Monday (offset 0 = Mon of this week... actually next)
+  // Count working days from Monday to today
+  var mon=new Date(now);
+  mon.setDate(now.getDate()-(day-1));
+  var count=0;
+  var d=new Date(mon);
+  while(d.getTime()<now.setHours(0,0,0,0)){
+    var wd=d.getDay();
+    if(wd!==0&&wd!==6) count++;
+    d.setDate(d.getDate()+1);
+  }
+  return count;
+}
 function updateClock(){
   var now=new Date();
   document.getElementById('clock').textContent=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
@@ -456,8 +477,8 @@ function updateClock(){
   document.getElementById('weekNum').textContent=wd2[0].getDate()+' '+months[wd2[0].getMonth()]+' - '+wd2[4].getDate()+' '+months[wd2[4].getMonth()]+' (S'+getWeekNumber(wd2[0])+')';
 }
 
-buildTicker();fetchAllCalendars();updateClock();
-setInterval(updateClock,1000);setInterval(fetchAllCalendars,5*60*1000);
+buildTicker();weekOffset=getTodayOffset();fetchAllCalendars();updateClock();
+setInterval(updateClock,1000);setInterval(function(){weekOffset=getTodayOffset();renderGrid();fetchAllCalendars();},5*60*1000);
 
 </script>
 </body>
