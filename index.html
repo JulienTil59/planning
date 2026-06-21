@@ -281,25 +281,10 @@ function renderGrid(){
       
       var evs=allEvents.filter(function(ev){return ev.agenda===agKey&&ev.day===i;});
       evs.sort(function(a,b){return a.start-b.start;});
-      var MAX_VISIBLE=3;
-      // Header with "voir plus" button if needed
-      if(evs.length>MAX_VISIBLE){
-        var hdr=document.createElement('div');hdr.className='cell-header';
-        var btnMore=document.createElement('button');
-        btnMore.className='btn-more';
-        btnMore.textContent='+' + (evs.length-MAX_VISIBLE) + ' voir tout';
-        (function(allEvs,dayIdx,agendaKey,calInfo){
-          btnMore.addEventListener('click',function(e){
-            e.stopPropagation();
-            showDayAgenda(allEvs,dayIdx,agendaKey,calInfo);
-          });
-        })(evs,i,agKey,cal);
-        hdr.appendChild(btnMore);
-        cell.appendChild(hdr);
-      }
-      evs.forEach(function(ev,evIdx){
+      cell._evs=evs;cell._cal=cal;cell._agKey=agKey;cell._dayIdx=i;
+      evs.forEach(function(ev){
         var card=document.createElement('div');
-        card.className='ev-card '+cal.cls+(evIdx>=MAX_VISIBLE?' ev-hidden':'');
+        card.className='ev-card '+cal.cls;
         var cEl=document.createElement('div');cEl.className='ec-client';cEl.textContent=ev.client;card.appendChild(cEl);
         if(ev.title){var tEl=document.createElement('div');tEl.className='ec-title';tEl.textContent=ev.title;card.appendChild(tEl);}
         if(ev.of){var oEl=document.createElement('div');oEl.className='ec-of';oEl.textContent=ev.of;card.appendChild(oEl);}
@@ -312,6 +297,44 @@ function renderGrid(){
       });
       grid.appendChild(cell);
     });
+  });
+  requestAnimationFrame(fitCells);
+}
+
+// Affiche autant de cartes que la hauteur de chaque case le permet,
+// et ne condense derriere "+N voir tout" que le surplus reel.
+function fitCells(){
+  document.querySelectorAll('.day-cell').forEach(function(cell){
+    var oldHdr=cell.querySelector('.cell-header');if(oldHdr)oldHdr.remove();
+    var cards=cell.querySelectorAll('.ev-card');
+    for(var i=0;i<cards.length;i++)cards[i].classList.remove('ev-hidden');
+    if(cards.length<=1)return;
+    var cs=getComputedStyle(cell);
+    var avail=cell.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+    var GAP=3;
+    function countFit(budget){
+      var used=0,n=0;
+      for(var i=0;i<cards.length;i++){
+        var h=cards[i].offsetHeight+(i>0?GAP:0);
+        if(used+h<=budget){used+=h;n++;}else break;
+      }
+      return n;
+    }
+    var visible=countFit(avail);
+    if(visible>=cards.length)return;
+    // Il faut un en-tete "voir tout" : on reserve sa hauteur puis on recompte.
+    visible=countFit(avail-28);
+    if(visible<1)visible=1;
+    for(var i=visible;i<cards.length;i++)cards[i].classList.add('ev-hidden');
+    var hdr=document.createElement('div');hdr.className='cell-header';
+    var btnMore=document.createElement('button');btnMore.className='btn-more';
+    btnMore.textContent='+'+(cards.length-visible)+' voir tout';
+    btnMore.addEventListener('click',function(e){
+      e.stopPropagation();
+      showDayAgenda(cell._evs,cell._dayIdx,cell._agKey,cell._cal);
+    });
+    hdr.appendChild(btnMore);
+    cell.insertBefore(hdr,cell.firstChild);
   });
 }
 
@@ -425,12 +448,22 @@ document.getElementById('goToday').addEventListener('click',function(){
 
 function buildTicker(){
   var track=document.getElementById('tickerTrack');
-  var msg='Ce planning est un outil d\u2019aide a l\u2019organisation - il oriente, il ne decide pas. Votre experience et votre jugement restent les meilleurs outils de l\u2019atelier.';
-  for(var i=0;i<2;i++){
-    var s=document.createElement('span');s.className='ticker-item';
-    var dot=document.createElement('span');dot.className='ticker-dot';
-    s.appendChild(dot);s.appendChild(document.createTextNode(msg));track.appendChild(s);
+  track.innerHTML='';
+  var messages=[
+    {text:'Ce planning est un outil d\u2019aide a l\u2019organisation - il oriente, il ne decide pas. Votre experience et votre jugement restent les meilleurs outils de l\u2019atelier.'},
+    {text:'La qualite est notre religion, la reactivite notre pain quotidien, la satisfaction de nos clients notre redemption.',color:'#10b981'}
+  ];
+  for(var rep=0;rep<2;rep++){
+    messages.forEach(function(m){
+      var s=document.createElement('span');s.className='ticker-item';
+      if(m.color)s.style.color=m.color;
+      var dot=document.createElement('span');dot.className='ticker-dot';
+      if(m.color)dot.style.background=m.color;
+      s.appendChild(dot);s.appendChild(document.createTextNode(m.text));
+      track.appendChild(s);
+    });
   }
+  track.style.animationDuration=(messages.length*40)+'s';
 }
 
 
@@ -478,6 +511,7 @@ function setupViewSwitch(){
 }
 
 buildTicker();setupViewSwitch();weekOffset=getTodayOffset();fetchAllCalendars();updateClock();
+window.addEventListener('resize',function(){requestAnimationFrame(fitCells);});
 setInterval(updateClock,1000);setInterval(function(){weekOffset=getTodayOffset();renderGrid();fetchAllCalendars();},5*60*1000);
 
 </script>
